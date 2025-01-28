@@ -41,7 +41,22 @@ def after_request(response):
 
 @app.route('/')
 def home():
-    """Page d'accueil avec les endpoints disponibles"""
+    """
+    Page d'accueil avec les endpoints disponibles
+    ---
+    responses:
+      200:
+        description: Accueil de l'API avec une liste des endpoints disponibles
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+            endpoints:
+              type: object
+              additionalProperties:
+                type: string
+    """
     return jsonify({
         "message": "Bienvenue sur l'API de recommandation de livres",
         "endpoints": {
@@ -54,6 +69,7 @@ def home():
         }
     })
 
+
 @app.route('/test')
 def test():
     """Route de test simple"""
@@ -61,7 +77,41 @@ def test():
 
 @app.route('/similarbooks', methods=['POST'])
 def similar_books():
-    """Rechercher des livres similaires en fonction du contenu et du titre"""
+    """
+    Rechercher des livres similaires en fonction du contenu et du titre.
+    ---
+    parameters:
+      - in: body
+        name: book
+        description: Objet contenant le titre du livre
+        required: true
+        schema:
+          type: object
+          properties:
+            title:
+              type: string
+              example: "Titre du livre"
+    responses:
+      200:
+        description: Liste des livres similaires
+        schema:
+          type: object
+          properties:
+            base_book:
+              type: object
+              description: Le livre de base utilisé pour la comparaison
+            similar_books:
+              type: array
+              items:
+                type: object
+              description: Liste des livres similaires
+      400:
+        description: Erreur de validation (par exemple, titre manquant)
+      404:
+        description: Livre non trouvé
+      500:
+        description: Erreur interne du serveur
+    """
     try:
         data = request.get_json()
         book_title = data.get('title', '').strip()
@@ -69,6 +119,7 @@ def similar_books():
         if not book_title:
             return jsonify({"error": "Le titre du livre est requis."}), 400
 
+        # Récupérer tous les livres
         books_ref = db.collection('BiblioInformatique')
         books = books_ref.stream()
 
@@ -104,11 +155,36 @@ def similar_books():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Erreur interne: {str(e)}"}), 500
+
 
 @app.route('/recommendations/similar-users/<user_email>')
 def get_similar_users_recommendations(user_email):
-    """Recommandations basées sur les utilisateurs similaires"""
+    """
+    Recommandations basées sur les utilisateurs similaires.
+    ---
+    parameters:
+      - in: path
+        name: user_email
+        type: string
+        required: true
+        description: L'email de l'utilisateur pour lequel obtenir les recommandations.
+    responses:
+      200:
+        description: Liste des recommandations basées sur les utilisateurs similaires
+        schema:
+          type: object
+          properties:
+            recommendations:
+              type: array
+              items:
+                type: object
+                description: Liste des documents recommandés
+      404:
+        description: Utilisateur non trouvé
+      500:
+        description: Erreur interne du serveur
+    """
     try:
         user_ref = db.collection('BiblioUser').document(user_email)
         user_doc = user_ref.get()
@@ -162,9 +238,229 @@ def get_similar_users_recommendations(user_email):
         })
 
     except Exception as e:
+        return jsonify({'error': f"Erreur interne: {str(e)}"}), 500
+
+@app.route('/recommendations/popular')
+def get_popular_books():
+    """
+    Obtient les livres les plus populaires basés sur les consultations récentes.
+    ---
+    responses:
+      200:
+        description: Liste des livres populaires recommandés
+        schema:
+          type: object
+          properties:
+            popular_books:
+              type: array
+              items:
+                type: object
+                description: Liste des livres populaires avec leur score de popularité
+      500:
+        description: Erreur interne du serveur
+    """
+    try:
+        # Obtenir tous les utilisateurs
+        users_ref = db.collection('BiblioUser')
+        users = users_ref.stream()
+
+        # Compter les occurrences de chaque livre
+        book_counts = Counter()
+
+        for user in users:
+            user_data = user.to_dict()
+            if 'docRecent' in user_data:
+                for doc in user_data['docRecent']:
+                    if 'nameDoc' in doc:
+                        book_counts[doc['nameDoc']] += 1
+
+        # Obtenir les détails des livres les plus populaires
+        popular_books = []
+        books_ref = db.collection('BiblioInformatique')
+
+        for book_name, count in book_counts.most_common(10):
+            # Chercher le livre dans la collection
+            query = books_ref.where('name', '==', book_name).limit(1)
+            book_docs = query.stream()
+
+            for book in book_docs:
+                book_data = book.to_dict()
+                book_data['id'] = book.id
+                book_data['popularity_score'] = count
+                popular_books.append(book_data)
+
+        return jsonify({'popular_books': popular_books})
+
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Ajoutez d'autres routes si besoin...
+@app.route('/user/<user_id>/history', methods=['POST'])
+def update_reading_history(user_id):
+    """
+    Met à jour l'historique de lecture d'un utilisateur avec un livre et une note.
+    ---
+    parameters:
+      - in: path
+        name: user_id
+        type: string
+        required: true
+        description: L'ID de l'utilisateur
+      - in: body
+        name: history
+        description: Données de mise à jour de l'historique
+        required: true
+        schema:
+          type: object
+          properties:
+            bookId:
+              type: string
+              description: L'ID du livre
+              example: "12345"
+            rating:
+              type: number
+              format: float
+              description: La note attribuée au livre (sur 5)
+              example: 4.5
+    responses:
+      200:
+        description: Historique mis à jour avec succès
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Historique mis à jour avec succès"
+      400:
+        description: Données invalides (par exemple, note incorrecte)
+      500:
+        description: Erreur interne du serveur
+    """
+    try:
+        data = request.get_json()
+        book_id = data.get('bookId')
+        rating = data.get('rating')
+
+        if not book_id or not isinstance(rating, (int, float)) or rating < 0 or rating > 5:
+            return jsonify({"error": "Données invalides"}), 400
+
+        user_ref = db.collection('BiblioUser').document(user_id)
+        user_ref.set({
+            'readingHistory': {
+                book_id: rating
+            }
+        }, merge=True)
+
+        return jsonify({"message": "Historique mis à jour avec succès"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/user/<user_id>/preferences')
+def get_user_preferences(user_id):
+    """
+    Obtient les préférences de l'utilisateur basées sur son historique de lecture.
+    ---
+    parameters:
+      - in: path
+        name: user_id
+        type: string
+        required: true
+        description: L'ID de l'utilisateur
+    responses:
+      200:
+        description: Préférences de lecture de l'utilisateur
+        schema:
+          type: object
+          properties:
+            categories:
+              type: object
+              additionalProperties:
+                type: integer
+            types:
+              type: object
+              additionalProperties:
+                type: integer
+      404:
+        description: Utilisateur non trouvé
+      500:
+        description: Erreur interne du serveur
+    """
+    try:
+        user_ref = db.collection('BiblioUser').document(user_id)
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+        user_data = user_doc.to_dict()
+        preferences = {
+            'categories': Counter(),
+            'types': Counter()
+        }
+
+        if 'docRecentRegarder' in user_data:
+            for doc in user_data['docRecentRegarder']:
+                if 'cathegorieDoc' in doc:
+                    preferences['categories'][doc['cathegorieDoc']] += 1
+                if 'type' in doc:
+                    preferences['types'][doc['type']] += 1
+
+        return jsonify(preferences)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/recommendations/user/<user_id>')
+def get_user_recommendations(user_id):
+    """
+    Obtient des recommandations de livres personnalisées pour un utilisateur basé sur ses préférences.
+    ---
+    parameters:
+      - in: path
+        name: user_id
+        type: string
+        required: true
+        description: L'ID de l'utilisateur
+    responses:
+      200:
+        description: Liste des recommandations de livres
+        schema:
+          type: object
+          properties:
+            recommendations:
+              type: array
+              items:
+                type: object
+                description: Liste des livres recommandés avec un score de pertinence
+      500:
+        description: Erreur interne du serveur
+    """
+    try:
+        # Obtenir les préférences de l'utilisateur
+        user_preferences = get_user_preferences(user_id)
+
+        if not user_preferences:
+            return jsonify({"error": "Aucune préférence trouvée pour cet utilisateur"}), 404
+
+        books_ref = db.collection('BiblioInformatique')
+        books = books_ref.stream()
+
+        recommendations = []
+        for book in books:
+            score = calculate_book_score(book, user_preferences)
+            if score > 0:
+                book_data = book.to_dict()
+                book_data['score'] = score
+                recommendations.append(book_data)
+
+        recommendations = sorted(recommendations, key=lambda x: x['score'], reverse=True)
+
+        return jsonify({'recommendations': recommendations})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=False)
