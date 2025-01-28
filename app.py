@@ -12,9 +12,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 app = Flask(__name__)
 CORS(app)
 
-# Chemin vers le fichier service-account-key.json
-current_dir = os.path.dirname(os.path.abspath(__file__))
-cred = credentials.Certificate(os.path.join(current_dir, 'service-account-key.json'))
+# Charger la clé Firebase depuis une variable d'environnement
+firebase_key_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+if not firebase_key_json:
+    raise ValueError("La variable d'environnement GOOGLE_APPLICATION_CREDENTIALS_JSON est manquante.")
 
 # Initialisation de Firebase Admin
 if not firebase_admin._apps:
