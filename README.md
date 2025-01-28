@@ -1,88 +1,33 @@
-# Système de Recommandation de Bibliothèque Numérique
+# Project recomendation api 
 
-Ce projet implémente un système de recommandation pour une bibliothèque numérique utilisant Firebase Functions et le filtrage collaboratif.
+### start
 
-## Configuration requise
-
-- Node.js (version 18 ou supérieure)
-- Firebase CLI
-- Compte Firebase
-
-## Installation
-
-1. Installez les dépendances :
+#### 1. Create a virtual environment
 ```bash
-npm install
+    python3 -m venv venv
 ```
 
-2. Configurez Firebase :
+#### 2. Activate de virtual envrionment
 ```bash
-firebase login
-firebase init
+    source venv/bin/activate  #sous linux
+
+    venv\Scripts\activate     #sous windows
 ```
 
-3. Déployez les fonctions :
+#### 3. Install dependences
 ```bash
-firebase deploy --only functions
+    pip install -r requirements.txt 
 ```
 
-## Endpoints API
 
-### 1. Obtenir des recommandations personnalisées
-```
-GET /recommendations/user/:userId
-```
-
-### 2. Obtenir les livres populaires
-```
-GET /recommendations/popular
-```
-
-### 3. Mettre à jour l'historique de lecture
-```
-POST /user/:userId/history
-Body: {
-    "bookId": "string",
-    "rating": number
-}
-```
-
-## Structure de la base de données Firestore
-
-### Collection 'users'
-```javascript
-{
-    userId: {
-        readingHistory: {
-            bookId: rating // rating de 1 à 5
-        }
-    }
-}
-```
-
-### Collection 'books'
-```javascript
-{
-    bookId: {
-        title: string,
-        author: string,
-        genre: string,
-        borrowCount: number
-    }
-}
-```
-
-## Algorithme de recommandation
-
-Le système utilise un algorithme de filtrage collaboratif basé sur la similarité entre utilisateurs :
-
-1. Calcul de la similarité entre utilisateurs (similarité cosinus)
-2. Identification des utilisateurs similaires
-3. Recommandation des livres appréciés par les utilisateurs similaires
-
-## Tests
-
-Pour exécuter les tests :
+#### 4. Start the project
 ```bash
-npm test
+    flask run     #for the api version
+
+    python3 app.py    #for the cosole version
+```
+
+#### 4. Desactivate de virtual environment
+```bash
+    deactivate
 ```
