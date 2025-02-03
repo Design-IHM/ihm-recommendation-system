@@ -25,7 +25,7 @@ swagger_template = {
         "description": "API pour fournir des recommandations de livres basées sur des similitudes et l'historique des utilisateurs.",
         "version": "1.0.0",
     },
-    "host": "localhost:5000",
+    "host": "recommendation.up.railway.app",
     "schemes": ["http", "https"]
 }
 
