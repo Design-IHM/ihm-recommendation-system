@@ -26,7 +26,7 @@ swagger_template = {
         "version": "1.0.0",
     },
     "host": "recommendation.up.railway.app",
-    "schemes": ["http", "https"]
+    "schemes": ["https"]
 }
 
 swagger_config = {
